@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>1-600 随机数字</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 防止全屏点击时选中文字 */
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+
+        /* 背景设置：请将 url 里的路径替换为你图片的实际路径，目前用了一个类似颜色的渐变作为后备 */
+        #app {
+            width: 100%;
+            height: 100%;
+            background-image: url('bg.jpg'); /* 替换为你的图片文件名 */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            /* 后备渐变背景（如果图片加载失败） */
+            background-color: #a2b9f0; 
+            background-image: linear-gradient(135deg, #d3e0fb 0%, #8ba8eb 50%, #b5c6f7 100%);
+            
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer; /* 提示可以点击 */
+            position: relative;
+        }
+
+        /* 数字样式 */
+        #number {
+            font-size: 20vw; /* 响应式字号，极大化显示 */
+            font-weight: 900;
+            color: white;
+            /* 微微发光的霓虹灯效果 */
+            text-shadow: 
+                0 0 10px rgba(255, 255, 255, 0.8),
+                0 0 20px rgba(255, 255, 255, 0.5),
+                0 0 40px rgba(255, 255, 255, 0.3);
+            transition: transform 0.05s;
+            z-index: 10;
+        }
+
+        /* 按钮容器 */
+        #controls {
+            position: absolute;
+            bottom: 10%; /* 放在屏幕下方 */
+            display: flex;
+            gap: 20px;
+            z-index: 20;
+        }
+
+        /* 按钮样式（毛玻璃风格） */
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            color: white;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 30px;
+            cursor: pointer;
+            backdrop-filter: blur(10px); /* 毛玻璃效果 */
+            -webkit-backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            outline: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* 全屏时的特殊样式（隐藏按钮） */
+        #app:fullscreen #controls {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <div id="number">1</div>
+        
+        <div id="controls">
+            <button id="toggle-btn">开始</button>
+            <button id="fullscreen-btn">全屏</button>
+        </div>
+    </div>
+
+    <script>
+        const app = document.getElementById('app');
+        const numberEl = document.getElementById('number');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+        let timer = null;
+        let isRunning = false;
+
+        // 生成 1-600 的随机数
+        function getRandomNumber() {
+            return Math.floor(Math.random() * 600) + 1;
+        }
+
+        // 开始跳动
+        function start() {
+            if (isRunning) return;
+            isRunning = true;
+            toggleBtn.textContent = '停止';
+            // 每 50 毫秒跳动一次
+            timer = setInterval(() => {
+                numberEl.textContent = getRandomNumber();
+            }, 50);
+        }
+
+        // 停止跳动
+        function stop() {
+            if (!isRunning) return;
+            isRunning = false;
+            toggleBtn.textContent = '开始';
+            clearInterval(timer);
+        }
+
+        // 切换状态
+        function toggle() {
+            if (isRunning) {
+                stop();
+            } else {
+                start();
+            }
+        }
+
+        // 开始/停止按钮点击事件
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡到屏幕，避免触发全屏点击逻辑
+            toggle();
+        });
+
+        // 全屏按钮点击事件
+        fullscreenBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            if (!document.fullscreenElement) {
+                // 进入全屏
+                if (app.requestFullscreen) {
+                    app.requestFullscreen();
+                } else if (app.webkitRequestFullscreen) { /* Safari */
+                    app.webkitRequestFullscreen();
+                } else if (app.msRequestFullscreen) { /* IE11 */
+                    app.msRequestFullscreen();
+                }
+            } else {
+                // 退出全屏
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        // 点击屏幕事件（用于全屏模式下控制开始/暂停）
+        app.addEventListener('click', () => {
+            // 只有在全屏模式下，点击屏幕才会触发开始/暂停
+            if (document.fullscreenElement) {
+                toggle();
+                // 点击屏幕时给数字一个小缩放反馈
+                numberEl.style.transform = 'scale(1.05)';
+                setTimeout(() => { numberEl.style.transform = 'scale(1)'; }, 100);
+            }
+        });
+
+        // 监听全屏状态变化
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                // 进入全屏时，按钮会自动通过CSS隐藏
+                fullscreenBtn.textContent = '退出全屏';
+            } else {
+                // 退出全屏时，如果正在运行，可以选择停止或者继续，这里保持原样
+                fullscreenBtn.textContent = '全屏';
+            }
+        });
+
+    </script>
+</body>
+</html>
