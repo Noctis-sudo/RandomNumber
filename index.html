@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>数字老虎机</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000 url("./空.png") center center / cover no-repeat;
+    font-family: Arial, sans-serif;
+    user-select: none;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+}
+
+#reels {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 2vw, 28px);
+}
+
+/* 每个滚轮的窗口 */
+.reel {
+    --digit-height: min(24vh, 180px);
+
+    position: relative;
+    width: clamp(65px, 17vw, 190px);
+    height: calc(var(--digit-height) * 3);
+    overflow: hidden;
+
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        black 27%,
+        black 73%,
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        black 27%,
+        black 73%,
+        transparent 100%
+    );
+}
+
+/* 滚动数字轨道 */
+.strip {
+    position: absolute;
+    width: 100%;
+    top: 0;
+    left: 0;
+    will-change: transform;
+}
+
+/* 单个数字 */
+.digit {
+    height: var(--digit-height);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    color: rgba(255, 255, 255, 0.82);
+    font-size: calc(var(--digit-height) * 0.79);
+    font-weight: 400;
+    line-height: 1;
+
+    font-variant-numeric: tabular-nums;
+
+    text-shadow:
+        0 0 5px rgba(255,255,255,0.18),
+        0 0 12px rgba(255,255,255,0.08);
+}
+
+/* 中间数字稍亮，上下数字更淡 */
+.digit.current {
+    color: rgba(255,255,255,0.88);
+    text-shadow:
+        0 0 6px rgba(255,255,255,0.22),
+        0 0 16px rgba(255,255,255,0.10);
+}
+
+/* 中间区域的轻微分隔线 */
+.reel::before,
+.reel::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    left: 8%;
+    width: 84%;
+    height: 1px;
+    background: rgba(255,255,255,0.045);
+    pointer-events: none;
+}
+
+.reel::before {
+    top: 33.333%;
+}
+
+.reel::after {
+    top: 66.666%;
+}
+
+#fullscreenBtn {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    padding: 10px 18px;
+    color: rgba(255,255,255,0.65);
+    background: rgba(0,0,0,0.20);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#hint {
+    position: absolute;
+    bottom: 35px;
+    color: rgba(255,255,255,0.40);
+    font-size: 14px;
+    letter-spacing: 3px;
+    pointer-events: none;
+}
+
+body.fullscreen #fullscreenBtn,
+body.fullscreen #hint {
+    display: none;
+}
+
+/* 全屏时放大滚轮 */
+body.fullscreen .reel {
+    --digit-height: min(27vh, 240px);
+}
+
+@media (max-width: 600px) {
+    .reel {
+        width: 27vw;
+        --digit-height: min(19vh, 130px);
+    }
+
+    #reels {
+        gap: 1vw;
+    }
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+    <div id="reels">
+        <div class="reel"><div class="strip"></div></div>
+        <div class="reel"><div class="strip"></div></div>
+        <div class="reel"><div class="strip"></div></div>
+    </div>
+
+    <div id="hint">CLICK TO START / STOP</div>
+    <button id="fullscreenBtn">⛶ 全屏模式</button>
+
+</div>
+
+<script>
+const app = document.getElementById("app");
+const reels = [...document.querySelectorAll(".reel")];
+const strips = [...document.querySelectorAll(".strip")];
+const fullscreenBtn = document.getElementById("fullscreenBtn");
+
+let state = "idle";
+let animationFrame = null;
+let stopTimers = [];
+
+let positions = [0, 0, 0];
+let targets = [0, 0, 0];
+let reelSpeeds = [0, 0, 0];
+let stopStarted = [false, false, false];
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function digitHeight() {
+    return reels[0].clientHeight / 3;
+}
+
+// 构造连续数字轨道，循环显示 0–9
+function setupReels() {
+    const h = digitHeight();
+
+    strips.forEach((strip, index) => {
+        strip.innerHTML = "";
+
+        // 足够长的循环数字序列
+        for (let i = 0; i < 300; i++) {
+            const el = document.createElement("div");
+            el.className = "digit";
+            el.textContent = i % 10;
+            strip.appendChild(el);
+        }
+
+        positions[index] = 30 + Math.floor(Math.random() * 10);
+        renderReel(index);
+    });
+}
+
+function renderReel(index) {
+    const h = digitHeight();
+    strips[index].style.transform =
+        `translate3d(0, ${-positions[index] * h}px, 0)`;
+}
+
+// 开始：三个滚轮连续向上滚动
+function start() {
+    if (state !== "idle") return;
+
+    state = "running";
+    stopStarted = [false, false, false];
+
+    reelSpeeds = [25, 28, 31];
+
+    function animate() {
+        if (state !== "running" && state !== "stopping") return;
+
+        const h = digitHeight();
+
+        for (let i = 0; i < 3; i++) {
+            if (!stopStarted[i]) {
+                positions[i] += reelSpeeds[i] / 60;
+
+                // 让数字序列循环
+                if (positions[i] > 100) {
+                    positions[i] -= 50;
+                }
+
+                renderReel(i);
+            }
+        }
+
+        animationFrame = requestAnimationFrame(animate);
+    }
+
+    cancelAnimationFrame(animationFrame);
+    animate();
+}
+
+// 平滑滚动到指定数字，并自然减速停止
+function stopOne(index, finalDigit) {
+
+    return new Promise(resolve => {
+
+        const startPosition = positions[index];
+
+        // 找到前方最近的目标数字，并确保多滚动几圈
+
+        let target = Math.floor(startPosition) + 1;
+
+        while (target % 10 !== finalDigit) {
+
+            target++;
+
+        }
+
+        target += 30;
+
+        while (target % 10 !== finalDigit) {
+
+            target++;
+
+        }
+
+        const distance = target - startPosition;
+
+        const duration = 1600;
+
+        const startTime = performance.now();
+
+        stopStarted[index] = true;
+
+        function easeOut(t) {
+
+            return 1 - Math.pow(1 - t, 4);
+
+        }
+
+        function step(now) {
+
+            const t = Math.min((now - startTime) / duration, 1);
+
+            positions[index] =
+
+                startPosition + distance * easeOut(t);
+
+            renderReel(index);
+
+            if (t < 1) {
+
+                requestAnimationFrame(step);
+
+            } else {
+
+                positions[index] = target;
+
+                renderReel(index);
+
+                resolve();
+
+            }
+
+        }
+
+        requestAnimationFrame(step);
+
+    });
+
+}
+
+// 停止：百位、十位、个位依次停止，每次间隔 1 秒
+async function stop() {
+    if (state !== "running") return;
+
+    state = "stopping";
+
+    // 随机最终结果：1–600
+    const result = Math.floor(Math.random() * 600) + 1;
+    const finalDigits = String(result).padStart(3, "0")
+        .split("")
+        .map(Number);
+
+    // 依次停止，每一位开始停止的间隔为 1 秒
+    for (let i = 0; i < 3; i++) {
+        if (i > 0) {
+            await sleep(500);
+        }
+
+        await stopOne(i, finalDigits[i]);
+    }
+
+    state = "idle";
+}
+
+// 点击屏幕开始或停止
+app.addEventListener("click", event => {
+    if (event.target === fullscreenBtn) return;
+
+    if (state === "idle") {
+        start();
+    } else if (state === "running") {
+        stop();
+    }
+});
+
+// 全屏按钮
+fullscreenBtn.addEventListener("click", async event => {
+    event.stopPropagation();
+
+    try {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } catch (error) {
+        console.error(error);
+    }
+});
+
+document.addEventListener("fullscreenchange", () => {
+    document.body.classList.toggle(
+        "fullscreen",
+        Boolean(document.fullscreenElement)
+    );
+});
+
+// 窗口大小改变时重新计算滚轮尺寸
+window.addEventListener("resize", () => {
+    reels.forEach((reel, index) => renderReel(index));
+});
+
+setupReels();
+</script>
+</body>
+</html>
