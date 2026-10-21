@@ -33,10 +33,17 @@ html, body {
 }
 
 #reels {
+
     display: flex;
+
     align-items: center;
+
     justify-content: center;
-    gap: clamp(8px, 2vw, 28px);
+
+    gap: 3vw;
+
+    width: 100%;
+
 }
 
 /* 每个滚轮的窗口 */
@@ -76,16 +83,18 @@ html, body {
 /* 单个数字 */
 .digit {
     height: var(--digit-height);
+    width: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
 
     color: rgba(255, 255, 255, 0.82);
-    font-size: calc(var(--digit-height) * 0.79);
+    font-size: calc(var(--digit-height) * 0.68);
     font-weight: 400;
     line-height: 1;
 
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 
     text-shadow:
         0 0 5px rgba(255,255,255,0.18),
@@ -150,7 +159,8 @@ body.fullscreen #hint {
 
 /* 全屏时放大滚轮 */
 body.fullscreen .reel {
-    --digit-height: min(27vh, 240px);
+    --digit-height: min(40vh, 800px);
+    width: min(22vw, 900px);
 }
 
 @media (max-width: 600px) {
